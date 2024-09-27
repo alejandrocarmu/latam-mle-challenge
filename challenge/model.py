@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import joblib
@@ -6,7 +7,6 @@ from datetime import datetime
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 from sklearn.metrics import classification_report, confusion_matrix
-#from sklearn.linear_model import LogisticRegression
 import xgboost as xgb
 import logging
 from rich.logging import RichHandler
@@ -20,6 +20,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("DelayModelLogger")
+
 class DelayModel:
     def __init__(self):
         """
@@ -42,6 +43,14 @@ class DelayModel:
         self.opera_categories = None
         self.tipovuelo_categories = None
         self.mes_categories = None
+
+        # Define directory for model and feature files
+        self.model_dir = "models"
+        self.model_path = os.path.join(self.model_dir, "best_model.pkl")
+        self.features_path = os.path.join(self.model_dir, "feature_names.pkl")
+
+        # Ensure the models/ directory exists
+        os.makedirs(self.model_dir, exist_ok=True)
 
     def preprocess(
         self,
@@ -115,7 +124,7 @@ class DelayModel:
         logger.info("Selected top 10 features.")
 
         if target_column:
-            target = data[target_column]
+            target = data[[target_column]]  # Use double brackets to ensure it's a DataFrame
             logger.info("Preprocessing completed. Returning features and target.")
             return features, target
         else:
@@ -177,9 +186,10 @@ class DelayModel:
         logger.info(report)
 
         # Save the trained model and feature names
-        joblib.dump(self._model, 'best_model.pkl')
-        joblib.dump(self.top_features, 'feature_names.pkl')
-        logger.info("Model and feature names saved successfully.")
+        joblib.dump(self._model, self.model_path)
+        joblib.dump(self.top_features, self.features_path)
+        logger.info(f"Model saved to {self.model_path}")
+        logger.info(f"Feature names saved to {self.features_path}")
 
     def predict(
         self,
@@ -189,31 +199,34 @@ class DelayModel:
         Predict delays for new flights.
 
         Args:
-            features (pd.DataFrame): Raw data.
+            features (pd.DataFrame): Preprocessed data.
 
         Returns:
             List[int]: Predicted targets.
         """
         if self._model is None:
-            logger.error("Model is not trained yet. Please call the 'fit' method first.")
-            raise ValueError("Model is not trained yet. Please call the 'fit' method first.")
+            logger.info("Loading model and feature names.")
+            # Load the model
+            self._model = joblib.load(self.model_path)
+            logger.info(f"Model loaded from {self.model_path}")
 
-        logger.info("Starting prediction on new data.")
+            # Load the feature names
+            self.top_features = joblib.load(self.features_path)
+            logger.info(f"Feature names loaded from {self.features_path}")
 
-        # Preprocess the features
-        processed_features = self.preprocess(features)
-        logger.info("Preprocessed the input features for prediction.")
+        # Ensure the features are reindexed properly
+        processed_features = features[self.top_features]
 
-        # Select only the top 10 features
-        processed_features = processed_features[self.top_features]
-        logger.info("Selected top 10 features for prediction.")
-
-        # Predict using the trained model
+        # Prediction logic
+        logger.info("Starting model prediction.")
         predictions = self._model.predict(processed_features)
-        logger.info("Completed predictions.")
-
+        
         # Convert predictions to list of integers
-        return predictions.tolist()
+        predictions = predictions.tolist()
+        predictions = [int(pred) for pred in predictions]
+        
+        logger.info("Prediction completed.")
+        return predictions
 
     @staticmethod
     def get_period_day(date_time: datetime) -> str:
