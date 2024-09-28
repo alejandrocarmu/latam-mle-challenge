@@ -191,6 +191,20 @@ class DelayModel:
         logger.info(f"Model saved to {self.model_path}")
         logger.info(f"Feature names saved to {self.features_path}")
 
+    def load_model(self):
+        """
+        Load the trained model and feature names from the models directory.
+        """
+        logger.info("Loading model and feature names from models directory.")
+        if not os.path.exists(self.model_path) or not os.path.exists(self.features_path):
+            logger.error("Model files not found.")
+            raise FileNotFoundError("Model files not found.")
+
+        self._model = joblib.load(self.model_path)
+        self.top_features = joblib.load(self.features_path)
+        logger.info(f"Model loaded from {self.model_path}")
+        logger.info(f"Feature names loaded from {self.features_path}")
+
     def predict(
         self,
         features: pd.DataFrame
@@ -205,17 +219,15 @@ class DelayModel:
             List[int]: Predicted targets.
         """
         if self._model is None:
-            logger.info("Loading model and feature names.")
-            # Load the model
-            self._model = joblib.load(self.model_path)
-            logger.info(f"Model loaded from {self.model_path}")
-
-            # Load the feature names
-            self.top_features = joblib.load(self.features_path)
-            logger.info(f"Feature names loaded from {self.features_path}")
+            logger.error("Model is not loaded. Please call 'load_model' first.")
+            raise ValueError("Model is not loaded. Please call 'load_model' first.")
 
         # Ensure the features are reindexed properly
-        processed_features = features[self.top_features]
+        try:
+            processed_features = features[self.top_features]
+        except KeyError as e:
+            logger.error(f"Missing columns in input features: {e}")
+            raise KeyError(f"Missing columns: {e}")
 
         # Prediction logic
         logger.info("Starting model prediction.")
