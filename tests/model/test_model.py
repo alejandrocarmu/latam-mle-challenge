@@ -33,7 +33,7 @@ class TestModel(unittest.TestCase):
         data_path = pathlib.Path(__file__).parent.parent.parent / "data" / "data.csv"
         
         # Load the data
-        self.data = pd.read_csv(filepath_or_buffer=data_path)
+        self.data = pd.read_csv(filepath_or_buffer=data_path, low_memory=False)
         
 
     def test_model_preprocess_for_training(

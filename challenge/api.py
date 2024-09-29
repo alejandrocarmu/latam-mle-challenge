@@ -1,14 +1,14 @@
-import os
 import logging
 from typing import List
 
-import fastapi
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import pandas as pd
 from rich.logging import RichHandler
+from contextlib import asynccontextmanager
 
 from .model import DelayModel
+from .utils import format_features_as_key_value  # Import the helper function
 
 # Configure the logger with RichHandler
 logging.basicConfig(
@@ -20,50 +20,56 @@ logging.basicConfig(
 
 logger = logging.getLogger("DelayModelAPI")
 
-app = FastAPI(title="Flight Delay Prediction API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan event handler for the FastAPI application.
+    Handles startup and shutdown events.
+    """
+    # Instantiate and load the model
+    app.state.delay_model = DelayModel()
+    
+    logger.info("Attempting to load the model.")
+    try:
+        app.state.delay_model.load_model()
+    except FileNotFoundError as e:
+        logger.error(f"Model files not found: {e}")
+        raise HTTPException(status_code=500, detail="Model files not found.")
+    except Exception as e:
+        logger.error(f"Failed to load the model: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load the model.")
+    logger.info("Model loaded successfully.")
+    
+    yield  # Application is now running
+    
+    # Shutdown logic
+    logger.info("Shutting down the Flight Delay Prediction API.")
 
+# Instantiate the FastAPI application with the lifespan handler
+app = FastAPI(
+    title="Flight Delay Prediction API",
+    lifespan=lifespan
+)
 
 # Define Pydantic models for request and response
 class Flight(BaseModel):
-    OPERA: str = Field(..., example="Aerolineas Argentinas")
-    TIPOVUELO: str = Field(..., example="N")  # 'I' for International, 'N' for National
-    MES: int = Field(..., ge=1, le=12, example=3)  # Month number (1-12)
-
+    OPERA: str = Field(..., json_schema_extra={"example": "Aerolineas Argentinas"})
+    TIPOVUELO: str = Field(..., json_schema_extra={"example": "N"})  # 'I' for International, 'N' for National
+    MES: int = Field(..., ge=1, le=12, json_schema_extra={"example": 3})  # Month number (1-12)
 
 class PredictRequest(BaseModel):
     flights: List[Flight]
 
-
 class PredictResponse(BaseModel):
     predict: List[int]
 
-
-@app.on_event("startup")
-def load_model_event():
+@app.get("/", status_code=200)
+async def root():
     """
-    Load the trained model and feature names from the models directory during startup.
+    Root endpoint providing a welcome message.
     """
-    global delay_model
-
-    logger.info("Loading the trained model and feature names.")
-    delay_model = DelayModel()
-
-    try:
-        delay_model.load_model()
-    except Exception as e:
-        logger.error(f"Failed to load the model: {e}")
-        raise e
-
-    logger.info("Model loaded successfully.")
-
-
-@app.on_event("shutdown")
-def shutdown_event():
-    """
-    Perform any necessary cleanup during shutdown.
-    """
-    logger.info("Shutting down the Flight Delay Prediction API.")
-
+    logger.info("Root endpoint called.")
+    return {"message": "Welcome to the Flight Delay Prediction API!"}
 
 @app.get("/health", status_code=200)
 async def get_health() -> dict:
@@ -73,6 +79,15 @@ async def get_health() -> dict:
     logger.info("Health check endpoint called.")
     return {"status": "OK"}
 
+@app.get("/is_model_loaded")
+async def is_model_loaded():
+    """
+    Endpoint to check if the model is loaded.
+    """
+    if app.state.delay_model and app.state.delay_model._model:
+        return {"model_loaded": True}
+    else:
+        return {"model_loaded": False}
 
 @app.post("/predict", response_model=PredictResponse, status_code=200)
 async def post_predict(request: PredictRequest) -> PredictResponse:
@@ -89,28 +104,38 @@ async def post_predict(request: PredictRequest) -> PredictResponse:
     
     # Convert the request data to a DataFrame
     try:
-        flights_data = [flight.dict() for flight in request.flights]
+        # Use .model_dump() instead of .dict() for Pydantic v2
+        flights_data = [flight.model_dump() for flight in request.flights]
         data_df = pd.DataFrame(flights_data)
-        logger.info(f"Received data: {data_df}")
+        
+        # Log the received data in a key-value format
+        data_str = data_df.to_string(index=False)
+        logger.info(f"Received data:\n{data_str}")
     except Exception as ve:
         logger.error(f"Data conversion error: {ve}")
         raise HTTPException(status_code=400, detail="Invalid input data.")
 
-    # Preprocess the data
+    # Simplified Preprocessing for API Use
     try:
-        features = delay_model.preprocess(data=data_df)
-        logger.info(f"Preprocessed features: {features}")
+        features = app.state.delay_model.api_preprocess(data=data_df)  # Use simplified method
+        
+        # Format the preprocessed features as key-value pairs
+        features_str = format_features_as_key_value(features)
+        logger.info(f"Preprocessed features:\n{features_str}")
     except KeyError as ke:
         logger.error(f"Preprocessing error: Missing column {ke}")
-        raise HTTPException(status_code=400, detail=f"Missing column: {ke}")
+        raise HTTPException(status_code=400, detail=f"Missing feature columns: {', '.join(ke.args)}")
     except Exception as e:
         logger.error(f"Preprocessing failed: {e}")
         raise HTTPException(status_code=500, detail="Preprocessing failed.")
 
     # Predict using the loaded model
     try:
-        predictions = delay_model.predict(features)
+        predictions = app.state.delay_model.predict(features)
         logger.info(f"Predictions: {predictions}")
+    except KeyError as e:
+        logger.error(f"Prediction error: Missing columns {e}")
+        raise HTTPException(status_code=400, detail=f"Missing feature columns: {', '.join(e.args)}")
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
         raise HTTPException(status_code=500, detail="Prediction failed.")

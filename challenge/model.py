@@ -39,31 +39,27 @@ class DelayModel:
             "OPERA_Sky Airline",
             "OPERA_Copa Air"
         ]
+
         # Store one-hot encoding categories to ensure consistency during prediction
         self.opera_categories = None
         self.tipovuelo_categories = None
         self.mes_categories = None
 
         # Define directory for model and feature files
-        self.model_dir = "models"
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.model_dir = os.path.join(current_dir, "models")
         self.model_path = os.path.join(self.model_dir, "best_model.pkl")
         self.features_path = os.path.join(self.model_dir, "feature_names.pkl")
 
         # Ensure the models/ directory exists
         os.makedirs(self.model_dir, exist_ok=True)
 
-    def preprocess(
-        self,
-        data: pd.DataFrame,
-        target_column: str = None
-    ) -> Union[Tuple[pd.DataFrame, pd.Series], pd.DataFrame]:
+    def preprocess(self, data: pd.DataFrame, target_column: str = None) -> Union[Tuple[pd.DataFrame, pd.Series], pd.DataFrame]:
         """
         Prepare raw data for training or prediction.
-
         Args:
             data (pd.DataFrame): Raw data.
             target_column (str, optional): If set, the target is returned.
-
         Returns:
             Tuple[pd.DataFrame, pd.Series]: Features and target.
             or
@@ -119,9 +115,14 @@ class DelayModel:
         encoded_features = pd.concat([opera_dummies, tipovuelo_dummies, mes_dummies], axis=1)
         logger.info("Concatenated one-hot encoded features.")
 
-        # Select top 10 features
-        features = encoded_features[self.top_features]
-        logger.info("Selected top 10 features.")
+        # Select top 10 features and ensure all expected columns are present
+        try:
+            features = encoded_features.reindex(columns=self.top_features, fill_value=0)
+            logger.info("Selected top 10 features, filling missing columns with zeros.")
+        except KeyError as e:
+            missing_cols = set(self.top_features) - set(encoded_features.columns)
+            logger.error(f"Missing columns in the data: {missing_cols}")
+            raise KeyError(f"Missing columns: {missing_cols}")
 
         if target_column:
             target = data[[target_column]]  # Use double brackets to ensure it's a DataFrame
@@ -131,14 +132,9 @@ class DelayModel:
             logger.info("Preprocessing completed. Returning features.")
             return features
 
-    def fit(
-        self,
-        features: pd.DataFrame,
-        target: pd.Series
-    ) -> None:
+    def fit(self, features: pd.DataFrame, target: pd.Series) -> None:
         """
         Fit the XGBoost model with preprocessed data.
-
         Args:
             features (pd.DataFrame): Preprocessed data.
             target (pd.Series): Target variable.
@@ -150,12 +146,7 @@ class DelayModel:
         logger.info("Shuffled the data.")
 
         # Split the data
-        x_train, x_test, y_train, y_test = train_test_split(
-            features,
-            target,
-            test_size=0.33,
-            random_state=42
-        )
+        x_train, x_test, y_train, y_test = train_test_split(features, target, test_size=0.33, random_state=42)
         logger.info(f"Split data into training and testing sets: {x_train.shape} | {x_test.shape}")
 
         # Calculate scale_pos_weight for XGBoost to handle class imbalance
@@ -169,7 +160,6 @@ class DelayModel:
             random_state=1,
             learning_rate=0.01,
             scale_pos_weight=scale_pos_weight,
-            use_label_encoder=False,
             eval_metric='logloss'
         )
         self._model.fit(x_train, y_train)
@@ -191,27 +181,10 @@ class DelayModel:
         logger.info(f"Model saved to {self.model_path}")
         logger.info(f"Feature names saved to {self.features_path}")
 
-    def load_model(self):
-        """
-        Load the trained model and feature names from the models directory.
-        """
-        logger.info("Loading model and feature names from models directory.")
-        if not os.path.exists(self.model_path) or not os.path.exists(self.features_path):
-            logger.error("Model files not found.")
-            raise FileNotFoundError("Model files not found.")
-
-        self._model = joblib.load(self.model_path)
-        self.top_features = joblib.load(self.features_path)
-        logger.info(f"Model loaded from {self.model_path}")
-        logger.info(f"Feature names loaded from {self.features_path}")
-
-    def predict(
-        self,
-        features: pd.DataFrame
-    ) -> List[int]:
+    def predict(self, features: pd.DataFrame) -> List[int]:
         """
         Predict delays for new flights.
-
+        
         Args:
             features (pd.DataFrame): Preprocessed data.
 
@@ -219,12 +192,18 @@ class DelayModel:
             List[int]: Predicted targets.
         """
         if self._model is None:
-            logger.error("Model is not loaded. Please call 'load_model' first.")
-            raise ValueError("Model is not loaded. Please call 'load_model' first.")
+            logger.info("Loading model and feature names.")
+            # Load the model
+            self._model = joblib.load(self.model_path)
+            logger.info(f"Model loaded from {self.model_path}")
 
-        # Ensure the features are reindexed properly
+            # Load the feature names
+            self.top_features = joblib.load(self.features_path)
+            logger.info(f"Feature names loaded from {self.features_path}")
+
+        # Ensure the features are reindexed properly to include all expected columns
         try:
-            processed_features = features[self.top_features]
+            processed_features = features.reindex(columns=self.top_features, fill_value=0)
         except KeyError as e:
             logger.error(f"Missing columns in input features: {e}")
             raise KeyError(f"Missing columns: {e}")
@@ -239,6 +218,24 @@ class DelayModel:
         
         logger.info("Prediction completed.")
         return predictions
+
+    def load_model(self):
+        """
+        Load the trained model and feature names from the models directory.
+        """
+        logger.info(f"Loading model from: {self.model_path}")
+        logger.info(f"Loading feature names from: {self.features_path}")
+        if not os.path.exists(self.model_path):
+            logger.error(f"Model file {self.model_path} not found.")
+            raise FileNotFoundError("Model file not found.")
+        if not os.path.exists(self.features_path):
+            logger.error(f"Feature names file {self.features_path} not found.")
+            raise FileNotFoundError("Feature names file not found.")
+
+        self._model = joblib.load(self.model_path)
+        self.top_features = joblib.load(self.features_path)
+        logger.info(f"Model loaded from {self.model_path}")
+        logger.info(f"Feature names loaded from {self.features_path}")
 
     @staticmethod
     def get_period_day(date_time: datetime) -> str:
@@ -287,3 +284,33 @@ class DelayModel:
         high_season = condition1 | condition2 | condition3
         logger.info("Determined high season flags.")
         return high_season.astype(int)
+
+    def api_preprocess(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Simplified preprocessing for the API that only deals with 'OPERA', 'TIPOVUELO', and 'MES'.
+        
+        Args:
+            data (pd.DataFrame): Raw data.
+
+        Returns:
+            pd.DataFrame: Features.
+        """
+        logger.info("Starting simplified preprocessing for API.")
+
+        # One-Hot Encoding for 'OPERA', 'TIPOVUELO', 'MES'
+        opera_dummies = pd.get_dummies(data['OPERA'], prefix='OPERA')
+        tipovuelo_dummies = pd.get_dummies(data['TIPOVUELO'], prefix='TIPOVUELO')
+        mes_dummies = pd.get_dummies(data['MES'], prefix='MES')
+        logger.info("Performed one-hot encoding for 'OPERA', 'TIPOVUELO', and 'MES'.")
+
+        # Reindex to match top_features, fill missing columns with 0
+        features = pd.concat([opera_dummies, tipovuelo_dummies, mes_dummies], axis=1)
+        features = features.reindex(columns=self.top_features, fill_value=0)
+        logger.info("Reindexed features to match top_features.")
+
+        # Convert boolean columns to integers to ensure consistency
+        features = features.astype(int)
+        logger.info("Converted features to integer type.")
+
+        logger.info("Simplified preprocessing completed. Returning features.")
+        return features

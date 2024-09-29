@@ -1,2 +1,7 @@
-matplotlib~=3.7.2
-seaborn~=0.12.2
+# Legacy Requirements
+# matplotlib~=3.7.2
+# seaborn~=0.12.2
+
+# New Requirements
+matplotlib
+seaborn
