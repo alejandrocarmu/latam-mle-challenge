@@ -36,41 +36,59 @@ class TestBatchPipeline(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"model_loaded": True})
     
-    def test_should_get_predict(self):
+    def test_should_get_predict_0(self):
         """
-        Test the predict endpoint with valid input.
+        Test the predict endpoint with valid input that should return a prediction of 0.
         """
         data = {
             "flights": [
                 {
-                    "OPERA": "Aerolineas Argentinas",
-                    "TIPOVUELO": "N",
-                    "MES": 3
+                    "OPERA": "Copa Air",  # Valid value from top features
+                    "TIPOVUELO": "I",  # Valid value from top features
+                    "MES": 4  # Valid value from top features
                 }
             ]
         }
-        # when("xgboost.XGBClassifier").predict(ANY).thenReturn(np.array([0])) # change this line to the model of chosing
+        # Uncomment and update the model if you want to mock the predict method
+        # when("xgboost.XGBClassifier").predict(ANY).thenReturn(np.array([0])) # Mocking prediction to return 0
         response = self.client.post("/predict", json=data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"predict": [0]})
     
+    def test_should_get_predict_1(self):
+        """
+        Test the predict endpoint with valid input that should return a prediction of 1.
+        """
+        data = {
+            "flights": [
+                {
+                    "OPERA": "Latin American Wings",  # Valid value from top features
+                    "TIPOVUELO": "I",  # Valid value from top features
+                    "MES": 7  # Valid value from top features
+                }
+            ]
+        }
+        # Uncomment and update the model if you want to mock the predict method
+        # when("xgboost.XGBClassifier").predict(ANY).thenReturn(np.array([1])) # Mocking prediction to return 1
+        response = self.client.post("/predict", json=data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"predict": [1]})
 
     def test_should_failed_unknown_column_1(self):
         """
-        Test the predict endpoint with invalid 'MES' value.
+        Test the predict endpoint with invalid 'OPERA' value.
         """
         data = {       
             "flights": [
                 {
-                    "OPERA": "Aerolineas Argentinas", 
-                    "TIPOVUELO": "N",
-                    "MES": 13  # Invalid month
+                    "OPERA": "Aerolineas Argentinas", # Invalid
+                    "TIPOVUELO": "I",  # Valid value from top features
+                    "MES": 7  # Valid value from top features
                 }
             ]
         }
-        # when("xgboost.XGBClassifier").predict(ANY).thenReturn(np.array([0]))# change this line to the model of chosing
         response = self.client.post("/predict", json=data)
-        self.assertEqual(response.status_code, 422)  # Changed from 400 to 422, FastAPI returns 422 when the request is invalid
+        self.assertEqual(response.status_code, 400)
 
     def test_should_failed_unknown_column_2(self):
         """
@@ -79,29 +97,28 @@ class TestBatchPipeline(unittest.TestCase):
         data = {        
             "flights": [
                 {
-                    "OPERA": "Aerolineas Argentinas", 
-                    "TIPOVUELO": "O",  # Invalid value
-                    "MES": 13
+                    "OPERA": "Latin American Wings",  # Valid value from top features
+                    "TIPOVUELO": "O",  # Invalid
+                    "MES": 7  # Valid value from top features
                 }
             ]
         }
-        # when("xgboost.XGBClassifier").predict(ANY).thenReturn(np.array([0]))# change this line to the model of chosing
         response = self.client.post("/predict", json=data)
-        self.assertEqual(response.status_code, 422)  # Changed from 400 to 422, FastAPI returns 422 when the request is invalid
-    
+        self.assertEqual(response.status_code, 400)
+        
     def test_should_failed_unknown_column_3(self):
         """
-        Test the predict endpoint with invalid 'OPERA' value.
+        Test the predict endpoint with invalid 'MES' value.
         """
         data = {        
             "flights": [
                 {
-                    "OPERA": "Argentinas",  # Assuming invalid
-                    "TIPOVUELO": "O", 
-                    "MES": 13
+                    "OPERA": "Latin American Wings",  # Valid value from top features
+                    "TIPOVUELO": "I",  # Valid value from top features
+                    "MES": 13  # Invalid
                 }
             ]
         }
         # when("xgboost.XGBClassifier").predict(ANY).thenReturn(np.array([0]))
         response = self.client.post("/predict", json=data)
-        self.assertEqual(response.status_code, 422)  # Changed from 400 to 422, FastAPI returns 422 when the request is invalid
+        self.assertEqual(response.status_code, 422) # FastAPI returns 422 for invalid data

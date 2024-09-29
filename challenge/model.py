@@ -303,8 +303,16 @@ class DelayModel:
         mes_dummies = pd.get_dummies(data['MES'], prefix='MES')
         logger.info("Performed one-hot encoding for 'OPERA', 'TIPOVUELO', and 'MES'.")
 
-        # Reindex to match top_features, fill missing columns with 0
+        # Concatenate all dummy variables
         features = pd.concat([opera_dummies, tipovuelo_dummies, mes_dummies], axis=1)
+
+        # Check for any unexpected columns in the one-hot encoded data
+        unknown_columns = set(features.columns) - set(self.top_features)
+        if unknown_columns:
+            logger.error(f"Unknown columns detected: {unknown_columns}")
+            raise ValueError(f"Unknown columns: {', '.join(unknown_columns)}")
+        
+        # Reindex to match top_features, fill missing columns with 0
         features = features.reindex(columns=self.top_features, fill_value=0)
         logger.info("Reindexed features to match top_features.")
 
@@ -314,3 +322,5 @@ class DelayModel:
 
         logger.info("Simplified preprocessing completed. Returning features.")
         return features
+
+

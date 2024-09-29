@@ -122,9 +122,9 @@ async def post_predict(request: PredictRequest) -> PredictResponse:
         # Format the preprocessed features as key-value pairs
         features_str = format_features_as_key_value(features)
         logger.info(f"Preprocessed features:\n{features_str}")
-    except KeyError as ke:
-        logger.error(f"Preprocessing error: Missing column {ke}")
-        raise HTTPException(status_code=400, detail=f"Missing feature columns: {', '.join(ke.args)}")
+    except ValueError as ve:
+        logger.error(f"Preprocessing error: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))  # Return 400 Bad Request for invalid input
     except Exception as e:
         logger.error(f"Preprocessing failed: {e}")
         raise HTTPException(status_code=500, detail="Preprocessing failed.")
@@ -141,3 +141,4 @@ async def post_predict(request: PredictRequest) -> PredictResponse:
         raise HTTPException(status_code=500, detail="Prediction failed.")
 
     return PredictResponse(predict=predictions)
+

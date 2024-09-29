@@ -59,3 +59,8 @@ build/
 .classpath
 .cproject
 .settings/
+
+# Ignore reports and coverage files
+/reports/
+coverage.xml
+.coverage
