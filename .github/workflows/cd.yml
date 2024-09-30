@@ -39,3 +39,10 @@ jobs:
             --region southamerica-east1 \
             --allow-unauthenticated \
             --memory 1Gi
+
+      - name: Grant public access to the Cloud Run service
+        run: |
+          gcloud beta run services add-iam-policy-binding flight-api \
+            --region=southamerica-east1 \
+            --member="allUsers" \
+            --role="roles/run.invoker"
