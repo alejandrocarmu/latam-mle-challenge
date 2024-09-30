@@ -1,16 +1,7 @@
-# Node.js
-node_modules/
-npm-debug.log
-yarn-error.log
-
 # Logs
 logs/
 *.log
 *.log.*
-
-# Dependency directories
-jspm_packages/
-bower_components/
 
 # Build directories
 dist/
@@ -40,17 +31,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
-# Java
-*.class
-*.jar
-*.war
-*.ear
-*.iml
-*.ipr
-*.iws
-target/
-build/
 
 # Miscellaneous
 *.swp

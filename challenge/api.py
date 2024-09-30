@@ -53,8 +53,8 @@ app = FastAPI(
 
 # Define Pydantic models for request and response
 class Flight(BaseModel):
-    OPERA: str = Field(..., json_schema_extra={"example": "Aerolineas Argentinas"})
-    TIPOVUELO: str = Field(..., json_schema_extra={"example": "N"})  # 'I' for International, 'N' for National
+    OPERA: str = Field(..., json_schema_extra={"example": "Latin American Wings"})
+    TIPOVUELO: str = Field(..., json_schema_extra={"example": "I"})  # 'I' for International, 'N' for National
     MES: int = Field(..., ge=1, le=12, json_schema_extra={"example": 3})  # Month number (1-12)
 
 class PredictRequest(BaseModel):

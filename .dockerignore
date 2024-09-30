@@ -1,0 +1,49 @@
+# Ignore Python bytecode files
+__pycache__/
+*.py[cod]
+
+# Ignore virtual environments
+.venv/
+env/
+venv/
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+
+# Ignore test and report directories
+tests/
+reports/
+workflows/
+docs/
+
+# Ignore Python package manager files
+*.lock
+*.egg-info/
+pip-log.txt
+
+# Ignore coverage files
+.coverage
+coverage.xml
+
+# Ignore Docker-related files
+Dockerfile
+docker-compose.yml
+
+# Ignore editor/IDE specific files
+.vscode/
+.idea/
+
+# Project-specific files
+.gitignore
+Makefile
+README.md
+requirements-dev.txt
+requirements-test.txt
+
+# Ignore any other hidden files or folders
+.*
